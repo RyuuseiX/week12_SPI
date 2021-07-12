@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,12 +54,19 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint16_t ADCin = 0;
 uint64_t _micro = 0;
+
+char TxDataBuffer[100] =
+{ 0 };
+char RxDataBuffer[32] =
+{ 0 };
+
 uint32_t Period = 500000;
 uint8_t Hz = 10;
 uint8_t V_Max = 33;
 uint8_t V_Min = 0;
 uint8_t Slope = 1;
 uint8_t Duty_Cycle = 50;
+
 typedef enum
 {
 	Mode_Menu,
@@ -507,7 +515,7 @@ uint16_t UARTRecieveIT()
 	return data;
 }
 
-void Menu(uint16_t input)
+void Menu(int16_t input)
 {
 	if ((input <= 90) && (input >= 65))
 	{
