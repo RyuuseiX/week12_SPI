@@ -53,6 +53,35 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint16_t ADCin = 0;
 uint64_t _micro = 0;
+uint32_t Period = 500000;
+uint8_t Hz = 10;
+uint8_t V_Max = 33;
+uint8_t V_Min = 0;
+uint8_t Slope = 1;
+uint8_t Duty_Cycle = 50;
+typedef enum
+{
+	Mode_Menu,
+	Mode_Wait,
+	Saw_Menu,
+	Saw_Wait,
+	Sine_Menu,
+	Sine_Wait,
+	Square_Menu,
+	Square_Wait
+}Menu_State;
+
+Menu_State State = Mode_Menu;
+
+typedef enum
+{
+	None,
+	Sawtooth,
+	Sine,
+	Square
+}Gen_Mode;
+
+Gen_Mode Mode = None;
 
 uint16_t dataOut = 0;
 
@@ -71,6 +100,10 @@ static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput);
 uint64_t micros();
+uint16_t UARTRecieveIT();
+void Menu(int16_t input);
+void Function_Gen();
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -125,7 +158,7 @@ int main(void)
 	while (1)
 	{
 		static uint64_t timestamp = 0;
-		if (micros() - timestamp > 100)
+		if (micros() - timestamp >= (Period/Hz))
 		{
 			timestamp = micros();
 			dataOut++;
@@ -137,6 +170,10 @@ int main(void)
 				MCP4922SetOutput(DACConfig, dataOut);
 			}
 		}
+
+		int16_t inputchar = UARTRecieveIT();
+		Menu(inputchar);
+		Function_Gen();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -458,6 +495,461 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint16_t UARTRecieveIT()
+{
+	static uint32_t dataPos =0;
+	int16_t data=-1;
+	if(huart2.RxXferSize - huart2.RxXferCount!=dataPos)
+	{
+		data=RxDataBuffer[dataPos];
+		dataPos= (dataPos+1)%huart2.RxXferSize;
+	}
+	return data;
+}
+
+void Menu(uint16_t input)
+{
+	if ((input <= 90) && (input >= 65))
+	{
+		input += 32;
+	}
+
+	switch (State)
+	{
+	case Mode_Menu:
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "Mode Select\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  1 : Sawtooth\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  2 : Sine\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  3 : Square\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		State = Mode_Wait;
+		break;
+	case Mode_Wait:
+		switch (input)
+		{
+		case -1:
+			break;
+		case 49:
+			State = Saw_Menu;
+			Mode = Sawtooth;
+			break;
+		case 50:
+			State = Sine_Menu;
+			Mode = Sine;
+			break;
+		case 51:
+			State = Square_Menu;
+			Mode = Square;
+			break;
+		default:
+			sprintf(TxDataBuffer, "Wrong Input\r\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+			break;
+		}
+		break;
+	case Saw_Menu:
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "Sawtooth\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  1 : Frequency +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  2 : Frequency -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  3 : V_Max +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  4 : V_Max -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  5 : V_Min +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  6 : V_Min -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  7 : Slope +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  8 : Slope -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		State = Saw_Wait;
+		break;
+	case Saw_Wait:
+		switch (input)
+		{
+		case -1:
+			break;
+		case 49:  //1 F+
+			if (Hz < 100)
+			{
+				Hz += 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 100)
+			{
+				sprintf(TxDataBuffer, "Frequency upper limit is 10 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 50:  //2 F-
+			if (Hz > 0)
+			{
+				Hz -= 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 0)
+			{
+				sprintf(TxDataBuffer, "Frequency lower limit is 0 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 51:  //3 V_Max+
+			if (V_Max < 33)
+			{
+				V_Max += 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+			else if (V_Max == 33)
+			{
+				sprintf(TxDataBuffer, "V_Max upper limit is 33 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 52:  //4 V_Max-
+			if (V_Max == V_Min+1)
+			{
+				sprintf(TxDataBuffer, "V_Max must be more than V_Min\r\n");
+			}
+			else if (V_Max > V_Min+1)
+			{
+				V_Max -= 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 53:  //5 V_Min+
+			if (V_Min == V_Max-1)
+			{
+				sprintf(TxDataBuffer, "V_Min must be less than to V_Max\r\n");
+			}
+			else if (V_Min < V_Max-1)
+			{
+				V_Min += 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Min/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 54:  //6 V_Min-
+			if (V_Min > 0)
+			{
+				V_Min -= 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Max/10);
+			}
+			else if (V_Min == 0)
+			{
+				sprintf(TxDataBuffer, "V_Min lower limit is 0 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 55:  //7 S+
+			Slope += 1;
+			sprintf(TxDataBuffer, "Slope = %d Hz\r\n", Slope);
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 56:  //8 S-
+			if (Slope > 1)
+			{
+				Slope -= 1;
+				sprintf(TxDataBuffer, "Slope = %d \r\n", Slope);
+			}
+			else if (Slope == 1)
+			{
+				sprintf(TxDataBuffer, "Slope lower limit is 1\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		default:
+			sprintf(TxDataBuffer, "Wrong Input\r\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+			break;
+		}
+		break;
+	case Sine_Menu:
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "Sine\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  1 : Frequency +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  2 : Frequency -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  3 : V_Max +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  4 : V_Max -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  5 : V_Min +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  6 : V_Min -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		State = Saw_Wait;
+		break;
+	case Sine_Wait:
+		switch (input)
+		{
+		case -1:
+			break;
+		case 49:  //1 F+
+			if (Hz < 100)
+			{
+				Hz += 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 100)
+			{
+				sprintf(TxDataBuffer, "Frequency upper limit is 10 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 50:  //2 F-
+			if (Hz > 0)
+			{
+				Hz -= 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 0)
+			{
+				sprintf(TxDataBuffer, "Frequency lower limit is 0 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 51:  //3 V_Max+
+			if (V_Max < 33)
+			{
+				V_Max += 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+			else if (V_Max == 33)
+			{
+				sprintf(TxDataBuffer, "V_Max upper limit is 33 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 52:  //4 V_Max-
+			if (V_Max == V_Min+1)
+			{
+				sprintf(TxDataBuffer, "V_Max must be more than V_Min\r\n");
+			}
+			else if (V_Max > V_Min+1)
+			{
+				V_Max -= 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 53:  //5 V_Min+
+			if (V_Min == V_Max-1)
+			{
+				sprintf(TxDataBuffer, "V_Min must be less than to V_Max\r\n");
+			}
+			else if (V_Min < V_Max-1)
+			{
+				V_Min += 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Min/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 54:  //6 V_Min-
+			if (V_Min > 0)
+			{
+				V_Min -= 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Max/10);
+			}
+			else if (V_Min == 0)
+			{
+				sprintf(TxDataBuffer, "V_Min lower limit is 0 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		default:
+			sprintf(TxDataBuffer, "Wrong Input\r\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+			break;
+	case Square_Menu:
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "Square\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  1 : Frequency +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  2 : Frequency -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  3 : V_Max +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  4 : V_Max -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  5 : V_Min +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  6 : V_Min -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  7 : Duty Cycle +\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "  8 : Duty Cycle -\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		sprintf(TxDataBuffer, "--------------\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+		State = Saw_Wait;
+		break;
+	case Square_Wait:
+		switch (input)
+		{
+		case -1:
+			break;
+		case 49:  //1 F+
+			if (Hz < 100)
+			{
+				Hz += 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 100)
+			{
+				sprintf(TxDataBuffer, "Frequency upper limit is 10 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 50:  //2 F-
+			if (Hz > 0)
+			{
+				Hz -= 1;
+				sprintf(TxDataBuffer, "Frequency = %d Hz\r\n", Hz/10);
+			}
+			else if (Hz == 0)
+			{
+				sprintf(TxDataBuffer, "Frequency lower limit is 0 Hz\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 51:  //3 V_Max+
+			if (V_Max < 33)
+			{
+				V_Max += 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+			else if (V_Max == 33)
+			{
+				sprintf(TxDataBuffer, "V_Max upper limit is 33 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 52:  //4 V_Max-
+			if (V_Max == V_Min+1)
+			{
+				sprintf(TxDataBuffer, "V_Max must be more than V_Min\r\n");
+			}
+			else if (V_Max > V_Min+1)
+			{
+				V_Max -= 1;
+				sprintf(TxDataBuffer, "V_Max = %d V\r\n", V_Max/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 53:  //5 V_Min+
+			if (V_Min == V_Max-1)
+			{
+				sprintf(TxDataBuffer, "V_Min must be less than to V_Max\r\n");
+			}
+			else if (V_Min < V_Max-1)
+			{
+				V_Min += 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Min/10);
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 54:  //6 V_Min-
+			if (V_Min > 0)
+			{
+				V_Min -= 1;
+				sprintf(TxDataBuffer, "V_Min = %d V\r\n", V_Max/10);
+			}
+			else if (V_Min == 0)
+			{
+				sprintf(TxDataBuffer, "V_Min lower limit is 0 V\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 55:  //7 D+
+			if ( Duty_Cycle < 100)
+			{
+				Duty_Cycle += 1;
+				sprintf(TxDataBuffer, "Duty Cycle = %d \r\n", Duty_Cycle);
+			}
+			else if (Duty_Cycle == 100)
+			{
+				sprintf(TxDataBuffer, "Duty cycle upper limit is 100\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		case 56:  //8 D-
+			if (Duty_Cycle > 0)
+			{
+				Duty_Cycle -= 1;
+				sprintf(TxDataBuffer, "Duty Cycle = %d \r\n", Duty_Cycle);
+			}
+			else if (V_Min == 0)
+			{
+				sprintf(TxDataBuffer, "Duty Cycle lower limit is 0\r\n");
+			}
+
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
+			break;
+		default:
+			sprintf(TxDataBuffer, "Wrong Input\r\n");
+			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 1000);
+			break;
+		}
+		break;
+	}
+}
+
+void Function_Gen()
+{
+	switch (Mode)
+	{
+	case None:
+		break;
+	case Sawtooth:
+		break;
+	case Sine:
+		break;
+	case Square:
+		break;
+	}
+}
+
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput)
 {
 	uint32_t OutputPacket = (DACOutput & 0x0fff) | ((Config & 0xf) << 12);

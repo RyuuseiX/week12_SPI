@@ -133,6 +133,7 @@ RCC.APB1CLKDivider=RCC_HCLK_DIV2
 PC14-OSC32_IN.Signal=RCC_OSC32_IN
 PB10.Locked=true
 boardIOC=true
+NVIC.USART2_IRQn=true\:0\:0\:false\:false\:true\:true\:true
 PH1\ -\ OSC_OUT.Locked=true
 RCC.FamilyName=M
 PA0-WKUP.Signal=ADCx_IN0
