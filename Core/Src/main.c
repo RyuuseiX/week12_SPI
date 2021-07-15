@@ -55,13 +55,14 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint16_t ADCin = 0;
 uint64_t _micro = 0;
+uint64_t timestamp = 0;
 
 char TxDataBuffer[100] =
 { 0 };
 char RxDataBuffer[32] =
 { 0 };
 
-uint32_t Period = 500000;
+uint32_t Period = 1000000;
 uint8_t Hz = 10;
 uint8_t V_Max = 33;
 uint8_t V_Min = 0;
@@ -79,7 +80,6 @@ typedef enum
 	Square_Menu,
 	Square_Wait
 }Menu_State;
-
 Menu_State State = Mode_Menu;
 
 typedef enum
@@ -89,7 +89,6 @@ typedef enum
 	Sine,
 	Square
 }Gen_Mode;
-
 Gen_Mode Mode = None;
 
 uint16_t dataOut = 0;
@@ -112,6 +111,7 @@ uint64_t micros();
 uint16_t UARTRecieveIT();
 void Menu(int16_t input);
 void Function_Gen();
+void Calc();
 
 /* USER CODE END PFP */
 
@@ -166,8 +166,12 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1)
 	{
-		static uint64_t timestamp = 0;
-		if (micros() - timestamp >= (Period/Hz))
+		HAL_UART_Receive_IT(&huart2,  (uint8_t*)RxDataBuffer, 32);
+
+		int16_t inputchar = UARTRecieveIT();
+		Menu(inputchar);
+		Function_Gen();
+		if (micros() - timestamp >= Period)
 		{
 			timestamp = micros();
 
@@ -178,11 +182,7 @@ int main(void)
 				MCP4922SetOutput(DACConfig, dataOut);
 			}
 		}
-		HAL_UART_Receive_IT(&huart2,  (uint8_t*)RxDataBuffer, 32);
 
-		int16_t inputchar = UARTRecieveIT();
-		Menu(inputchar);
-		Function_Gen();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -303,7 +303,7 @@ static void MX_SPI3_Init(void)
   hspi3.Instance = SPI3;
   hspi3.Init.Mode = SPI_MODE_MASTER;
   hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi3.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
@@ -582,7 +582,7 @@ void Menu(int16_t input)
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 		sprintf(TxDataBuffer, "  7 : Slope Up/Down\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
-		sprintf(TxDataBuffer, "  8 : back\r\n");
+		sprintf(TxDataBuffer, "  9 : back\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 		sprintf(TxDataBuffer, "--------------\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
@@ -623,6 +623,7 @@ void Menu(int16_t input)
 			if (V_Max < 33)
 			{
 				V_Max += 1;
+				data_MAX += 4096/3.3
 				sprintf(TxDataBuffer, "V_Max = %d.%d V\r\n", V_Max/10, V_Max%10);
 			}
 			else if (V_Max == 33)
@@ -676,7 +677,7 @@ void Menu(int16_t input)
 			sprintf(TxDataBuffer, "Slope = %d \r\n", Slope);
 			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 			break;
-		case 56:
+		case 57:  //9 back
 			State = Mode_Menu;
 			Mode = None;
 			break;
@@ -703,7 +704,7 @@ void Menu(int16_t input)
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 		sprintf(TxDataBuffer, "  6 : V_Min -\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
-		sprintf(TxDataBuffer, "  7 : back\r\n");
+		sprintf(TxDataBuffer, "  9 : back\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 		sprintf(TxDataBuffer, "--------------\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
@@ -792,7 +793,7 @@ void Menu(int16_t input)
 
 			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 			break;
-		case 55:
+		case 57:  //back
 			State = Mode_Menu;
 			Mode = None;
 			break;
@@ -938,7 +939,7 @@ void Menu(int16_t input)
 
 			HAL_UART_Transmit(&huart2, (uint8_t*)TxDataBuffer, strlen(TxDataBuffer), 100);
 			break;
-		case 57:
+		case 57:  //back
 			State = Mode_Menu;
 			Mode = None;
 			break;
@@ -955,40 +956,60 @@ void Function_Gen()
 {
 	static float rad = 0;
 	static uint8_t V_Out = 0;
-	switch (Mode)
+	if (Hz > 0)
 	{
-	case None:
-		dataOut = 0;
-		break;
-	case Sawtooth:
-		dataOut += Slope;
-		dataOut %= (V_Max/33)*4096;
-		if (dataOut < (V_Min/33)*4096)
+		switch (Mode)
 		{
-			dataOut = (V_Min/33)*4096;
-		}
-		break;
-	case Sine:
-		dataOut = (V_Max-V_Min)*(sin(rad));
-		rad+=0.1;
-		break;
-	case Square:
-		V_Out += 1;
-		if (V_Out >= Duty_Cycle)
-		{
-			V_Out = V_Max;
-		}
-		else if (V_Out < Duty_Cycle)
-		{
-			V_Out = V_Min;
-		}
+		case None:
+			dataOut = 0;
+			break;
+		case Sawtooth:
+			Period = 1000000/(Hz*(V_Max-V_Min)*4096/330);
+			if (Slope == 1)
+			{
+				if (dataOut >= (V_Max*4096/33))
+				{
+					dataOut = V_Min*4096/33;
+				}
+				dataOut += 1;
+			}
+			else if (Slope == -1)
+			{
+				if (dataOut <= (V_Min*4096/33))
+				{
+					dataOut = V_Max*4096/33;
+				}
+				dataOut -= 1;
+			}
 
-		if (V_Out >= 100)
-		{
-			V_Out = 0;
+			break;
+		case Sine:
+			dataOut = (V_Max-V_Min)*(sin(rad));
+			rad+=0.01;
+			break;
+		case Square:
+			V_Out += 1;
+			if (V_Out >= Duty_Cycle)
+			{
+				V_Out = V_Max;
+			}
+			else if (V_Out < Duty_Cycle)
+			{
+				V_Out = V_Min;
+			}
+
+			if (V_Out >= 100)
+			{
+				V_Out = 0;
+			}
+			break;
 		}
-		break;
 	}
+	else if (Hz == 0)
+	{
+		dataOut = V_Min*4096/33;
+	}
+
 }
 
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput)
