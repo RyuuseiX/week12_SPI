@@ -623,7 +623,6 @@ void Menu(int16_t input)
 			if (V_Max < 33)
 			{
 				V_Max += 1;
-				data_MAX += 4096/3.3
 				sprintf(TxDataBuffer, "V_Max = %d.%d V\r\n", V_Max/10, V_Max%10);
 			}
 			else if (V_Max == 33)
