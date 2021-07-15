@@ -992,11 +992,11 @@ void Function_Gen()
 			V_Out += 1;
 			if (V_Out <= Duty_Cycle)
 			{
-				dataOut = V_Max*4096/33;
+				dataOut = (V_Max*4096/33) *99/100;
 			}
 			else if (V_Out > Duty_Cycle)
 			{
-				dataOut = V_Min*4096/33;
+				dataOut = (V_Min*4096/33) *99/100;
 			}
 
 			V_Out%=100;
