@@ -1,4 +1,4 @@
-main.c:127:5:main	24	static
+main.c:126:5:main	24	static
 main.c:197:6:SystemClock_Config	88	static
 main.c:242:13:MX_ADC1_Init	24	static
 main.c:292:13:MX_SPI3_Init	8	static
@@ -10,8 +10,8 @@ main.c:455:13:MX_GPIO_Init	48	static
 main.c:507:10:UARTRecieveIT	16	static
 main.c:519:6:Menu	16	static
 main.c:954:6:Function_Gen	16	static
-main.c:1014:6:MCP4922SetOutput	24	static
-main.c:1021:6:HAL_SPI_TxCpltCallback	16	static
-main.c:1029:6:HAL_TIM_PeriodElapsedCallback	24	static
-main.c:1037:10:micros	12	static
-main.c:1047:6:Error_Handler	4	static,ignoring_inline_asm
+main.c:1013:6:MCP4922SetOutput	24	static
+main.c:1020:6:HAL_SPI_TxCpltCallback	16	static
+main.c:1028:6:HAL_TIM_PeriodElapsedCallback	24	static
+main.c:1036:10:micros	12	static
+main.c:1046:6:Error_Handler	4	static,ignoring_inline_asm

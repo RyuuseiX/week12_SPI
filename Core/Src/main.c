@@ -111,7 +111,6 @@ uint64_t micros();
 uint16_t UARTRecieveIT();
 void Menu(int16_t input);
 void Function_Gen();
-void Calc();
 
 /* USER CODE END PFP */
 
@@ -170,11 +169,11 @@ int main(void)
 
 		int16_t inputchar = UARTRecieveIT();
 		Menu(inputchar);
-		Function_Gen();
+
 		if (micros() - timestamp >= Period)
 		{
 			timestamp = micros();
-
+			Function_Gen();
 			if (hspi3.State == HAL_SPI_STATE_READY
 					&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
 							== GPIO_PIN_SET)
@@ -182,6 +181,7 @@ int main(void)
 				MCP4922SetOutput(DACConfig, dataOut);
 			}
 		}
+
 
     /* USER CODE END WHILE */
 
@@ -256,15 +256,15 @@ static void MX_ADC1_Init(void)
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T3_TRGO;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -273,7 +273,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_28CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -903,7 +903,7 @@ void Menu(int16_t input)
 			if (V_Min > 0)
 			{
 				V_Min -= 1;
-				sprintf(TxDataBuffer, "V_Min = %d.%d V\r\n",V_Max/10, V_Max%10);
+				sprintf(TxDataBuffer, "V_Min = %d.%d V\r\n",V_Min/10, V_Min%10);
 			}
 			else if (V_Min == 0)
 			{
@@ -953,7 +953,7 @@ void Menu(int16_t input)
 
 void Function_Gen()
 {
-	static float rad = 0;
+	static uint16_t rad = 0;
 	static uint8_t V_Out = 0;
 	if (Hz > 0)
 	{
@@ -980,27 +980,26 @@ void Function_Gen()
 				}
 				dataOut -= 1;
 			}
-
 			break;
 		case Sine:
-			dataOut = (V_Max-V_Min)*(sin(rad));
-			rad+=0.01;
+			Period = 1000000/(628*Hz/10);
+			dataOut = (sin((float)rad/100)*((V_Max-V_Min)*4096/66)) + ((V_Max + V_Min)*4096/66);
+			rad+=1;
+			rad%=628;
 			break;
 		case Square:
+			Period = 1000000/(100*Hz/10);
 			V_Out += 1;
-			if (V_Out >= Duty_Cycle)
+			if (V_Out <= Duty_Cycle)
 			{
-				V_Out = V_Max;
+				dataOut = V_Max*4096/33;
 			}
-			else if (V_Out < Duty_Cycle)
+			else if (V_Out > Duty_Cycle)
 			{
-				V_Out = V_Min;
+				dataOut = V_Min*4096/33;
 			}
 
-			if (V_Out >= 100)
-			{
-				V_Out = 0;
-			}
+			V_Out%=100;
 			break;
 		}
 	}
